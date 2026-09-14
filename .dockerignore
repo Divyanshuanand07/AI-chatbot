@@ -1,0 +1,34 @@
+# Keep the build context small and free of host-specific state.
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+
+# Local secrets — the image must never bake these in.
+.env
+.env.*
+!.env.example
+
+# Test and tooling artefacts
+.pytest_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+tests/
+
+# Collected at build time inside the image
+staticfiles/
+
+# VCS and editor
+.git/
+.gitignore
+.idea/
+.vscode/
+*.swp
+.DS_Store
+
+# Docs are not needed at runtime
+docs/
+*.md
+!README.md

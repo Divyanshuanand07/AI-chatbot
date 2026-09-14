@@ -1,0 +1,55 @@
+[project]
+name = "cars24-ops-assistant"
+version = "1.0.0"
+description = "AI Operations Assistant — natural-language queries over Cars24 order operations"
+requires-python = ">=3.12"
+
+[tool.ruff]
+line-length = 90
+target-version = "py312"
+exclude = [
+    ".venv",
+    "migrations",   # generated code
+    "staticfiles",
+]
+
+[tool.ruff.lint]
+select = [
+    "E",    # pycodestyle errors
+    "F",    # pyflakes
+    "I",    # import sorting
+    "B",    # bugbear
+    "UP",   # pyupgrade
+    "C4",   # comprehensions
+    "DJ",   # Django-specific checks
+    "RUF",  # ruff-specific
+]
+ignore = [
+    "E501",    # line length is handled by the formatter
+    "B008",    # function call in default arg — common and safe in DRF
+    "RUF012",  # mutable class attrs: Django's Meta/ModelAdmin idiom
+]
+
+[tool.ruff.lint.per-file-ignores]
+# Settings modules intentionally use star imports to layer configuration.
+"config/settings/*.py" = ["F403", "F405", "E402"]
+# Tests may shadow fixtures and use assert-heavy style.
+"tests/*.py" = ["B011"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["apps", "config"]
+
+[tool.coverage.run]
+source = ["apps"]
+omit = [
+    "*/migrations/*",
+    "*/tests/*",
+    "*/apps.py",
+]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "raise NotImplementedError",
+    "if TYPE_CHECKING:",
+]

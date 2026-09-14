@@ -1,0 +1,83 @@
+# Full local stack: Postgres with pgvector, Redis, and the application.
+#
+#   docker compose up --build
+#
+# The first run seeds demo data and ingests the SOP corpus (SEED_DEMO_DATA),
+# so the API has something to answer questions about immediately.
+
+name: cars24-ops-assistant
+
+services:
+  db:
+    # The pgvector image rather than plain postgres: the knowledge base needs
+    # the `vector` extension, and building it into the image avoids a manual
+    # CREATE EXTENSION step on every fresh volume.
+    image: pgvector/pgvector:pg17
+    environment:
+      POSTGRES_DB: ops_ai
+      POSTGRES_USER: ops_ai
+      POSTGRES_PASSWORD: ops_ai_pw
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      # Exposed for psql access from the host during development.
+      - "5433:5432"
+    healthcheck:
+      # `pg_isready` returns success while the server is still starting, so
+      # the actual query is what makes `service_healthy` meaningful.
+      test: ["CMD-SHELL", "pg_isready -U ops_ai -d ops_ai && psql -U ops_ai -d ops_ai -c 'SELECT 1'"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+      start_period: 10s
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    # Small cache with an LRU policy: everything stored here is a short-lived
+    # tool result that can always be recomputed from Postgres.
+    command: redis-server --save "" --maxmemory 256mb --maxmemory-policy allkeys-lru
+    ports:
+      - "6380:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    restart: unless-stopped
+
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    environment:
+      DJANGO_SETTINGS_MODULE: config.settings.prod
+      DJANGO_SECRET_KEY: ${DJANGO_SECRET_KEY:-compose-only-secret-key-not-for-production-use}
+      DEBUG: "False"
+      ALLOWED_HOSTS: "localhost,127.0.0.1,web"
+      SECURE_SSL_REDIRECT: "False"   # no TLS terminator in front of compose
+      DATABASE_URL: postgres://ops_ai:ops_ai_pw@db:5432/ops_ai
+      REDIS_URL: redis://redis:6379/0
+      LOG_FORMAT: json
+
+      # Seed on first boot so the stack is immediately useful.
+      SEED_DEMO_DATA: "${SEED_DEMO_DATA:-true}"
+
+      # Offline by default: the stack runs with no credentials and no spend.
+      # Set LLM_PROVIDER=anthropic and pass a key to use the real model.
+      LLM_PROVIDER: "${LLM_PROVIDER:-stub}"
+      ANTHROPIC_API_KEY: "${ANTHROPIC_API_KEY:-}"
+      LLM_MODEL: "${LLM_MODEL:-claude-opus-5}"
+
+      EMBEDDING_PROVIDER: "${EMBEDDING_PROVIDER:-hashing}"
+    ports:
+      - "8000:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
